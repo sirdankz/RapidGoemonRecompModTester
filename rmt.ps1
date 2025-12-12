@@ -6,15 +6,15 @@
 #     - toolRoot         (N64Recomp root, where RecompModTool.exe lives)
 #
 # Steps:
-# [1/8] Preparing build environment...
-# [2/8] Fast dev path reuse (optional)...
-# [3/8] Selecting / validating mod source folder...
-# [4/8] Selecting / validating mods output folder...
-# [5/8] Locating mod repo root and checking dummy_headers\stdio.h...
-# [6/8] Checking shared 'patches' folder...
-# [7/8] Locating N64Recomp root + RecompModTool.exe...
-# [8/8] Building mod and installing...
-# [9/9] Launching Goemon64Recompiled.exe and allowing ESC to close game (PowerShell stays open)
+# [1/9] Preparing build environment...
+# [2/9] Fast dev path reuse (optional)...
+# [3/9] Selecting / validating mod source folder...
+# [4/9] Selecting / validating mods output folder...
+# [5/9] Locating mod repo root and checking dummy_headers\stdio.h...
+# [6/9] Checking shared 'patches' folder...
+# [7/9] Locating N64Recomp root + RecompModTool.exe...
+# [8/9] Building mod, running RecompModTool, copying .nrm...
+# [9/9] Launching Goemon64Recompiled.exe and allowing ESC to close game
 
 param(
     [string]$modSourceFolder,
@@ -56,9 +56,9 @@ Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host ""
 
 # --------------------------------------
-# [1/8] Check required tools
+# [1/9] Check required tools
 # --------------------------------------
-Write-Host "[1/8] Preparing build environment..." -ForegroundColor Yellow
+Write-Host "[1/9] Preparing build environment..." -ForegroundColor Yellow
 
 $missing = @()
 
@@ -78,9 +78,9 @@ Write-Host "[OK] git / make / clang found." -ForegroundColor Green
 Write-Host ""
 
 # --------------------------------------
-# [2/8] Fast dev path reuse (optional)
+# [2/9] Fast dev path reuse (optional)
 # --------------------------------------
-Write-Host "[2/8] Fast dev path reuse (optional)..." -ForegroundColor Yellow
+Write-Host "[2/9] Fast dev path reuse (optional)..." -ForegroundColor Yellow
 
 if (-not $modSourceFolder -and -not $modsOutputFolder -and $cfg -and $cfg.modSourceFolder -and $cfg.modsOutputFolder) {
     Write-Host "  Last mod source folder : $($cfg.modSourceFolder)" -ForegroundColor White
@@ -119,9 +119,9 @@ function Select-FolderModern([string]$title) {
 }
 
 # --------------------------------------
-# [3/8] Select / validate mod source folder
+# [3/9] Select / validate mod source folder
 # --------------------------------------
-Write-Host "[3/8] Selecting mod source folder..." -ForegroundColor Yellow
+Write-Host "[3/9] Selecting mod source folder..." -ForegroundColor Yellow
 
 while (-not $modSourceFolder) {
     Write-Host "  Please select your MOD SOURCE folder (where mod.toml and Makefile live)." -ForegroundColor White
@@ -162,9 +162,9 @@ Write-Host "[OK] Using Makefile: $makefilePath" -ForegroundColor Green
 Write-Host ""
 
 # --------------------------------------
-# [4/8] Select / validate mods output folder
+# [4/9] Select / validate mods output folder
 # --------------------------------------
-Write-Host "[4/8] Selecting mods output folder (game's mods directory)..." -ForegroundColor Yellow
+Write-Host "[4/9] Selecting mods output folder (game's mods directory)..." -ForegroundColor Yellow
 
 while (-not $modsOutputFolder) {
     Write-Host "  Please select your GAME MODS folder (where the compiled mod will be installed)." -ForegroundColor White
@@ -190,9 +190,9 @@ Write-Host "  Mods output folder: $modsOutputFolder" -ForegroundColor White
 Write-Host ""
 
 # --------------------------------------
-# [5/8] Locate mod repo root & check dummy_headers\stdio.h
+# [5/9] Locate mod repo root & check dummy_headers\stdio.h
 # --------------------------------------
-Write-Host "[5/8] Checking dummy_headers\stdio.h..." -ForegroundColor Yellow
+Write-Host "[5/9] Checking dummy_headers\stdio.h..." -ForegroundColor Yellow
 
 # Walk upwards from modSourceFolder until we find a .git folder
 $repoRoot = $modSourceFolder
@@ -264,9 +264,9 @@ else {
 Write-Host ""
 
 # --------------------------------------
-# [6/8] Copy shared 'patches' folder into mod (if missing)
+# [6/9] Copy shared 'patches' folder into mod (if missing)
 # --------------------------------------
-Write-Host "[6/8] Checking shared 'patches' folder..." -ForegroundColor Yellow
+Write-Host "[6/9] Checking shared 'patches' folder..." -ForegroundColor Yellow
 
 $sharedPatches = Join-Path $repoRoot "patches"
 $modPatches = Join-Path $modSourceFolder "patches"
@@ -294,9 +294,9 @@ else {
 Write-Host ""
 
 # --------------------------------------
-# [7/8] Locating N64Recomp root + RecompModTool.exe
+# [7/9] Locating N64Recomp root + RecompModTool.exe
 # --------------------------------------
-Write-Host "[7/8] Locating N64Recomp root + RecompModTool.exe..." -ForegroundColor Yellow
+Write-Host "[7/9] Locating N64Recomp root + RecompModTool.exe..." -ForegroundColor Yellow
 
 $toolRoot = $null
 $toolExe  = $null
@@ -387,9 +387,9 @@ Write-Host "[INFO] RecompModTool.exe: $toolExe" -ForegroundColor DarkGray
 Write-Host ""
 
 # --------------------------------------
-# [8/8] Build mod & install into game mods folder
+# [8/9] Build mod, run RecompModTool, copy newest .nrm, save config
 # --------------------------------------
-Write-Host "[8/8] Building mod and installing into game mods folder..." -ForegroundColor Yellow
+Write-Host "[8/9] Building mod and installing into game mods folder..." -ForegroundColor Yellow
 
 Write-Host "[INFO] Running 'git submodule update --init --recursive' in mod repo root..." -ForegroundColor Yellow
 Push-Location $repoRoot
@@ -407,10 +407,23 @@ catch {
     exit 1
 }
 Pop-Location
+Write-Host ""
 
+Write-Host "[INFO] Running 'make clean' + 'make' in mod source folder..." -ForegroundColor Yellow
 Push-Location $modSourceFolder
 try {
-    Write-Host "[INFO] Running 'make' in mod source folder..." -ForegroundColor Yellow
+    # First, always try a clean
+    Write-Host "[INFO] Running 'make clean'..." -ForegroundColor Yellow
+    make clean
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARN] 'make clean' returned exit code $LASTEXITCODE (maybe no clean target). Continuing anyway..." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "[OK] 'make clean' completed." -ForegroundColor Green
+    }
+
+    # Then do the real build
+    Write-Host "[INFO] Running 'make'..." -ForegroundColor Yellow
     make
     if ($LASTEXITCODE -ne 0) {
         throw "make returned exit code $LASTEXITCODE"
@@ -424,41 +437,63 @@ catch {
     exit 1
 }
 Pop-Location
+Write-Host ""
 
-# After build, we expect some output under a 'build' folder or similar.
-# The exact layout depends on the mod's Makefile, but we will:
-#  - Look for any *.mod / *.nrm / *.bin in the build folder
-#  - Copy them into the game mods folder
 
-$buildDir = Join-Path $modSourceFolder "build"
-if (-not (Test-Path $buildDir)) {
-    Write-Host "[WARN] Build directory not found at: $buildDir" -ForegroundColor Yellow
+Write-Host "[INFO] Running RecompModTool.exe..." -ForegroundColor Yellow
+
+if (-not (Test-Path $toolExe)) {
+    Write-Host "[ERROR] Could not find RecompModTool.exe at:" -ForegroundColor Red
+    Write-Host "        $toolExe" -ForegroundColor Yellow
+    exit 1
 }
-else {
-    Write-Host "[INFO] Searching for built mod files in: $buildDir" -ForegroundColor DarkGray
-    $builtMods = Get-ChildItem -Path $buildDir -File -Include *.mod, *.nrm, *.bin -Recurse -ErrorAction SilentlyContinue
 
-    if (-not $builtMods -or $builtMods.Count -eq 0) {
-        Write-Host "[WARN] No *.mod / *.nrm / *.bin files found in build directory." -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "[INFO] Found the following built mod files:" -ForegroundColor DarkGray
-        $builtMods | ForEach-Object {
-            Write-Host "  - $($_.FullName)" -ForegroundColor White
-        }
+$buildOutput = Join-Path $modSourceFolder "build"
+if (-not (Test-Path $buildOutput)) {
+    Write-Host "[ERROR] Build output folder not found:" -ForegroundColor Red
+    Write-Host "        $buildOutput" -ForegroundColor Yellow
+    exit 1
+}
 
-        foreach ($file in $builtMods) {
-            $dest = Join-Path $modsOutputFolder $file.Name
-            try {
-                Copy-Item $file.FullName $dest -Force
-                Write-Host "[OK] Copied $($file.Name) -> $modsOutputFolder" -ForegroundColor Green
-            }
-            catch {
-                Write-Host "[ERROR] Failed to copy $($file.FullName) to $modsOutputFolder" -ForegroundColor Red
-                Write-Host "        $($_.Exception.Message)" -ForegroundColor Yellow
-            }
-        }
+$toolArgs = @($modToml, $buildOutput)
+
+Push-Location $repoRoot
+try {
+    & $toolExe @toolArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "RecompModTool.exe returned exit code $LASTEXITCODE"
     }
+    Write-Host "[OK] RecompModTool.exe finished." -ForegroundColor Green
+}
+catch {
+    Write-Host "[ERROR] RecompModTool.exe failed:" -ForegroundColor Red
+    Write-Host "        $($_.Exception.Message)" -ForegroundColor Yellow
+    Pop-Location
+    exit 1
+}
+Pop-Location
+Write-Host ""
+
+Write-Host "[INFO] Looking for newest .nrm file in build output..." -ForegroundColor Yellow
+$nrmFiles = Get-ChildItem -Path $buildOutput -Filter *.nrm -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+
+if (-not $nrmFiles -or $nrmFiles.Count -eq 0) {
+    Write-Host "[ERROR] No .nrm files found in build output folder:" -ForegroundColor Red
+    Write-Host "        $buildOutput" -ForegroundColor Yellow
+    exit 1
+}
+
+$latestMod = $nrmFiles[0]
+Write-Host "[INFO] Latest .nrm: $($latestMod.FullName)" -ForegroundColor White
+
+try {
+    Copy-Item -Path $latestMod.FullName -Destination $modsOutputFolder -Force
+    Write-Host "[OK] Copied $($latestMod.Name) -> $modsOutputFolder" -ForegroundColor Green
+}
+catch {
+    Write-Host "[ERROR] Failed to copy .nrm to mods output folder:" -ForegroundColor Red
+    Write-Host "        $($_.Exception.Message)" -ForegroundColor Yellow
+    exit 1
 }
 
 # Save last used paths (including toolRoot) for next time
@@ -484,10 +519,10 @@ Write-Host ""
 
 # --------------------------------------
 # [9/9] Launch Goemon64Recompiled.exe next to the mods folder (optional)
-#       + Global ESC detection (works even while game window is focused)
+#       + Global ESC detection (fresh press only)
 # --------------------------------------
 
-# Define a tiny C# helper to call user32.dll GetAsyncKeyState globally
+# Define a tiny C# helper to call user32.dll GetAsyncKeyState globally.
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -503,7 +538,7 @@ public static class GlobalKeyboard
         return (GetAsyncKeyState(0x1B) & 0x8000) != 0;
     }
 }
-"@
+"@ -ErrorAction SilentlyContinue
 
 try {
     $gameRoot = Split-Path -Path $modsOutputFolder -Parent
@@ -522,9 +557,16 @@ try {
         Write-Host "(PowerShell window will stay open so you can immediately rebuild / test again.)" -ForegroundColor DarkGray
         Write-Host ""
 
-        # Poll ESC globally while the game is running
+        # Only trigger on a new ESC press (up -> down)
+        $prevEscDown = $false
+
+        # Small grace delay so any previous ESC presses are released.
+        Start-Sleep -Milliseconds 200
+
         while (-not $proc.HasExited) {
-            if ([GlobalKeyboard]::IsEscDown()) {
+            $nowEscDown = [GlobalKeyboard]::IsEscDown()
+
+            if ($nowEscDown -and -not $prevEscDown) {
                 Write-Host "[INFO] ESC detected globally. Closing Goemon64Recompiled.exe..." -ForegroundColor Yellow
                 try {
                     if (-not $proc.HasExited) {
@@ -536,6 +578,8 @@ try {
                 }
                 break
             }
+
+            $prevEscDown = $nowEscDown
             Start-Sleep -Milliseconds 80
         }
 
